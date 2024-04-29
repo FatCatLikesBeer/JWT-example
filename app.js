@@ -10,29 +10,66 @@ const usersRouter = require('./routes/users');
 
 const app = express();
 
-// view engine setup
+require('dotenv').config();
+
+// View engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
+// Log Stuff to Console
 app.use(logger('dev'));
+
+// Use JSON to interpret request body & stuff
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Use cookie parser
 app.use(cookieParser());
+
+// Not EXACTLY sure what this is for
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Tell app to use the following routers for said routes
+// These routes are not used for our purposes
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
+
+/* BEGIN LOGIC */
+
+// Deadend GET request
 app.get('/api', (req, res) => {
   res.json({
     message: 'Welcome to the API!',
   });
 });
 
+// POST Login API
+app.post('/api/login', (req, res) => {
+  // Mock User
+  const user = {
+    id: 1,
+    username: 'brad',
+    email: 'brad@gmail.com',
+  };
+
+  // Return a JWT for the above user
+  jwt.sign({ user: user }, process.env.secretKey, { expiresIn: '600s' }, (err, token) => {
+    res.json({
+      token: token,
+    });
+  });
+});
+
+// POST: If token is valid, post something, else reject with 403
 app.post('/api/posts', verifyToken, (req, res) => {
-  jwt.verify(req.token, 'secretkey', (error, authData) => {
+  console.log(req.token);
+  jwt.verify(req.token, process.env.secretKey, (error, authData) => {
     if (error) {
-      res.sendStatus(403);
+      res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      })
     } else {
       res.json({
         message: 'POST created...',
@@ -43,25 +80,28 @@ app.post('/api/posts', verifyToken, (req, res) => {
   });
 });
 
-app.post('/api/login', (req, res) => {
-  // Mock user
-  const user = {
-    id: 1,
-    username: 'brad',
-    email: 'brad@gmail.com',
-  };
-
-  jwt.sign({ user: user }, 'secretkey', { expiresIn: '120s' }, (err, token) => {
-    res.json({
-      token: token,
-    });
+// Same as the method above but using a GET request instead of POST request
+app.get('/api/posts', verifyToken, (req, res, next) => {
+  jwt.verify(req.token, process.env.secretKey, (error, authData) => {
+    if (error) {
+      res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      })
+    } else {
+      res.json({
+        message: 'POST created...',
+        authData: authData,
+        token: req.token,
+      });
+    }
   });
 });
 
 // FORMAT OF TOKEN
 // Authorization: Bearer <access_token>
 
-// Verify Token
+// Token Verification Function
 function verifyToken(req, res, next) {
   // Get auth header value
   const barerHeader = req.headers['authorization'];
@@ -79,7 +119,10 @@ function verifyToken(req, res, next) {
     next();
   } else {
     // Forbidden
-    res.sendStatus(403);
+    res.status(403).json({
+      success: false,
+      message: "Forbidden",
+    });
   }
 };
 
